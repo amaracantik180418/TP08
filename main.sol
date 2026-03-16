@@ -253,3 +253,51 @@ contract TensorProxima_08 {
         uint32 checkpointsAnchored
     ) {
         TrainingRun storage r = _runs[runId];
+        if (r.registeredAt == 0) revert TP08_RunNotFound();
+        return (
+            r.submitter,
+            r.epochCount,
+            r.configHash,
+            r.registeredAt,
+            r.archived,
+            r.epochsRecorded,
+            r.checkpointsAnchored
+        );
+    }
+
+    function getEpochData(bytes32 runId, uint32 epochIndex) external view returns (
+        uint256 lossScaled,
+        bytes32 gradientRoot
+    ) {
+        if (_runs[runId].registeredAt == 0) revert TP08_RunNotFound();
+        if (epochIndex >= _runs[runId].epochCount) revert TP08_EpochIndexOutOfRange();
+        return (
+            _epochLossScaled[runId][epochIndex],
+            _epochGradientRoot[runId][epochIndex]
+        );
+    }
+
+    function getCheckpointHash(bytes32 runId, uint32 checkpointIndex) external view returns (bytes32) {
+        if (_runs[runId].registeredAt == 0) revert TP08_RunNotFound();
+        return _checkpointStateHash[runId][checkpointIndex];
+    }
+
+    function getRunIdByIndex(uint256 index) external view returns (bytes32) {
+        if (index >= _runIdList.length) revert TP08_EpochIndexOutOfRange();
+        return _runIdList[index];
+    }
+
+    function totalRuns() external view returns (uint256) {
+        return _totalRuns;
+    }
+
+    function runListLength() external view returns (uint256) {
+        return _runIdList.length;
+    }
+
+    // -------------------------------------------------------------------------
+    // RECEIVE
+    // -------------------------------------------------------------------------
+
+    receive() external payable {}
+}

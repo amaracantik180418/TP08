@@ -100,3 +100,54 @@ contract TensorProxima_08 {
     bytes32[] private _runIdList;
     uint256 private _totalRuns;
 
+    // -------------------------------------------------------------------------
+    // MODIFIERS
+    // -------------------------------------------------------------------------
+
+    modifier onlyCurator() {
+        if (msg.sender != curator && msg.sender != curatorHub) revert TP08_NotCurator();
+        _;
+    }
+
+    modifier whenNotPaused() {
+        if (paused) revert TP08_Paused();
+        _;
+    }
+
+    modifier nonReentrant() {
+        if (_lock != 0) revert TP08_Reentrancy();
+        _lock = 1;
+        _;
+        _lock = 0;
+    }
+
+    // -------------------------------------------------------------------------
+    // CONSTRUCTOR
+    // -------------------------------------------------------------------------
+
+    constructor() {
+        curatorHub = address(0x9f2E7a4B1c3D5e6F8A0b2C4d6E8f0a2B4c6D8e0F);
+        feeCollector = address(0x3C5d7E9a1b4F2c6A8e0B2d4F6a8c0E2b4D6f8A0c);
+        curator = address(0x7A1b3C5d7E9f2a4B6c8D0e2F4a6b8C0d2E4f6A8b);
+        anchorFeeWei = 0.0027 ether;
+    }
+
+    // -------------------------------------------------------------------------
+    // EXTERNAL (WRITE)
+    // -------------------------------------------------------------------------
+
+    /// @notice Register a new training run and pay anchor fee.
+    function registerRun(
+        bytes32 runId,
+        uint16 epochCount,
+        bytes32 configHash
+    ) external payable whenNotPaused nonReentrant {
+        if (runId == bytes32(0)) revert TP08_InvalidRunId();
+        if (configHash == bytes32(0)) revert TP08_InvalidConfigHash();
+        if (epochCount == 0 || epochCount > MAX_EPOCHS_PER_RUN) revert TP08_EpochCountMismatch();
+        if (msg.value < anchorFeeWei) revert TP08_AnchorFeeRequired();
+        if (_runs[runId].registeredAt != 0) revert TP08_InvalidRunId();
+
+        _runs[runId] = TrainingRun({
+            submitter: msg.sender,
+            epochCount: epochCount,

@@ -49,3 +49,54 @@ contract TensorProxima_08 {
     error TP08_EpochIndexOutOfRange();
     error TP08_InvalidRunId();
     error TP08_InvalidConfigHash();
+    error TP08_AnchorFeeRequired();
+    error TP08_TransferFailed();
+    error TP08_Reentrancy();
+    error TP08_Paused();
+    error TP08_EpochCountMismatch();
+    error TP08_CheckpointIndexOutOfRange();
+    error TP08_AlreadyInitialized();
+    error TP08_InvalidFee();
+
+    // -------------------------------------------------------------------------
+    // CONSTANTS
+    // -------------------------------------------------------------------------
+
+    uint256 public constant TP08_VERSION = 8;
+    uint256 public constant MAX_EPOCHS_PER_RUN = 50000;
+    uint256 public constant MAX_CHECKPOINTS_PER_RUN = 2000;
+    uint256 public constant LOSS_SCALE_FACTOR = 1e12;
+    bytes32 public constant TP08_DOMAIN = keccak256("TensorProxima_08.Run.v8");
+
+    // -------------------------------------------------------------------------
+    // IMMUTABLES
+    // -------------------------------------------------------------------------
+
+    address public immutable curatorHub;
+    address public immutable feeCollector;
+    uint256 public immutable anchorFeeWei;
+
+    // -------------------------------------------------------------------------
+    // STATE
+    // -------------------------------------------------------------------------
+
+    struct TrainingRun {
+        address submitter;
+        uint16 epochCount;
+        bytes32 configHash;
+        uint256 registeredAt;
+        bool archived;
+        uint32 epochsRecorded;
+        uint32 checkpointsAnchored;
+    }
+
+    mapping(bytes32 => TrainingRun) private _runs;
+    mapping(bytes32 => mapping(uint32 => uint256)) private _epochLossScaled;
+    mapping(bytes32 => mapping(uint32 => bytes32)) private _epochGradientRoot;
+    mapping(bytes32 => mapping(uint32 => bytes32)) private _checkpointStateHash;
+    address public curator;
+    bool public paused;
+    uint256 private _lock;
+    bytes32[] private _runIdList;
+    uint256 private _totalRuns;
+

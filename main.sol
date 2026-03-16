@@ -202,3 +202,54 @@ contract TensorProxima_08 {
         if (checkpointIndex >= MAX_CHECKPOINTS_PER_RUN) revert TP08_CheckpointIndexOutOfRange();
         if (stateHash == bytes32(0)) revert TP08_InvalidConfigHash();
 
+        _checkpointStateHash[runId][checkpointIndex] = stateHash;
+        run.checkpointsAnchored += 1;
+
+        emit CheckpointAnchored(runId, checkpointIndex, stateHash, block.timestamp);
+    }
+
+    /// @notice Archive a run (curator only).
+    function archiveRun(bytes32 runId) external onlyCurator whenNotPaused {
+        TrainingRun storage run = _runs[runId];
+        if (run.registeredAt == 0) revert TP08_RunNotFound();
+        if (run.archived) revert TP08_RunAlreadyArchived();
+        run.archived = true;
+        emit RunArchived(runId, msg.sender, block.number);
+    }
+
+    /// @notice Set curator address (curator only).
+    function setCurator(address newCurator) external onlyCurator {
+        if (newCurator == address(0)) revert TP08_ZeroAddress();
+        address prev = curator;
+        curator = newCurator;
+        emit CuratorUpdated(prev, newCurator);
+    }
+
+    /// @notice Toggle pause (curator only).
+    function setPaused(bool value) external onlyCurator {
+        paused = value;
+    }
+
+    /// @notice Withdraw excess ETH from fee collector role (curator only; to predefined feeCollector logic or treasury).
+    function pullTreasury(address to, uint256 amountWei) external onlyCurator nonReentrant {
+        if (to == address(0)) revert TP08_ZeroAddress();
+        if (amountWei == 0) revert TP08_InvalidFee();
+        (bool ok,) = to.call{value: amountWei}("");
+        if (!ok) revert TP08_TransferFailed();
+        emit TreasuryPull(to, amountWei, block.timestamp);
+    }
+
+    // -------------------------------------------------------------------------
+    // EXTERNAL (VIEW)
+    // -------------------------------------------------------------------------
+
+    function getRun(bytes32 runId) external view returns (
+        address submitter,
+        uint16 epochCount,
+        bytes32 configHash,
+        uint256 registeredAt,
+        bool archived,
+        uint32 epochsRecorded,
+        uint32 checkpointsAnchored
+    ) {
+        TrainingRun storage r = _runs[runId];

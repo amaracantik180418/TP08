@@ -151,3 +151,54 @@ contract TensorProxima_08 {
         _runs[runId] = TrainingRun({
             submitter: msg.sender,
             epochCount: epochCount,
+            configHash: configHash,
+            registeredAt: block.timestamp,
+            archived: false,
+            epochsRecorded: 0,
+            checkpointsAnchored: 0
+        });
+        _runIdList.push(runId);
+        _totalRuns += 1;
+
+        (bool ok,) = feeCollector.call{value: anchorFeeWei}("");
+        if (!ok) revert TP08_TransferFailed();
+        if (msg.value > anchorFeeWei) {
+            (bool refund,) = msg.sender.call{value: msg.value - anchorFeeWei}("");
+            if (!refund) revert TP08_TransferFailed();
+        }
+
+        emit RunRegistered(runId, msg.sender, epochCount, configHash, block.timestamp);
+    }
+
+    /// @notice Record an epoch's loss and gradient root for a run.
+    function recordEpoch(
+        bytes32 runId,
+        uint32 epochIndex,
+        uint256 lossScaled,
+        bytes32 gradientRoot
+    ) external whenNotPaused {
+        TrainingRun storage run = _runs[runId];
+        if (run.registeredAt == 0) revert TP08_RunNotFound();
+        if (run.archived) revert TP08_RunAlreadyArchived();
+        if (epochIndex >= run.epochCount) revert TP08_EpochIndexOutOfRange();
+        if (run.epochsRecorded != epochIndex) revert TP08_EpochCountMismatch();
+
+        _epochLossScaled[runId][epochIndex] = lossScaled;
+        _epochGradientRoot[runId][epochIndex] = gradientRoot;
+        run.epochsRecorded += 1;
+
+        emit EpochRecorded(runId, epochIndex, lossScaled, gradientRoot, block.timestamp);
+    }
+
+    /// @notice Anchor a checkpoint state hash for a run.
+    function anchorCheckpoint(
+        bytes32 runId,
+        uint32 checkpointIndex,
+        bytes32 stateHash
+    ) external whenNotPaused {
+        TrainingRun storage run = _runs[runId];
+        if (run.registeredAt == 0) revert TP08_RunNotFound();
+        if (run.archived) revert TP08_RunAlreadyArchived();
+        if (checkpointIndex >= MAX_CHECKPOINTS_PER_RUN) revert TP08_CheckpointIndexOutOfRange();
+        if (stateHash == bytes32(0)) revert TP08_InvalidConfigHash();
+
